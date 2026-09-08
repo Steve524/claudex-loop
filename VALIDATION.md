@@ -1,5 +1,12 @@
 # Validation — bidirectional loop
 
+## Antigravity research adapter — 2026-09-08
+
+- Automated suite: 26 passing tests, including research from either host, explicit Gemini/fresh-job requirements, CLI failure, missing/malformed results, omitted workers, incomplete research despite CLI success, timeout handling, and rejection of research as plan approval.
+- Live adapter smoke test on Windows with Antigravity CLI 1.1.27 and explicit `gemini-3.8-flash-high`: runner exit 0, structured COMPLETE report, two dispatched workers accounted for, about 55 seconds. Used plan mode and terminal sandboxing without permission bypass. Each worker was limited to two searches; these are smoke-test limits, not production defaults. Findings were based on search summaries with limitations recorded; this was orchestration validation, not a source-accuracy audit.
+- Earlier user-run fixtures demonstrated CLI timeout failure, CLI SUCCESS with INCOMPLETE research, and successful bounded synthesis. Forced process-tree termination after both workers recorded a search killed captured local processes; worker transcript hashes stayed unchanged over the 15-second observation window. Immediate cancellation of remote provider requests is unverified. Non-Windows Antigravity cleanup is not live-tested.
+- Diagnostics and research reports remain outside the repository; they are not committed fixtures. The runner checks structure and worker accounting; the host still verifies research coverage, worker evidence when needed, and source accuracy.
+
 Development date: 2026-09-06. Tests run in disposable fixtures; production repositories were not built or modified by live smoke tests.
 
 ## Automated checks

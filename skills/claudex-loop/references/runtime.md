@@ -6,6 +6,24 @@ The runner orchestrates one CLI turn, not the entire interview or loop. The host
 
 ## Roles and commands
 
+### Phase 0 research
+
+Use the runner for one fresh Antigravity job. Research is separate from the Claude/Codex role resolver and needs no existing plan or Git repository:
+
+```text
+python RUNNER research --host codex --repo PROJECT --brief RESEARCH_BRIEF.md --model GEMINI_MODEL_ID --timeout 600
+```
+
+Use `--host claude` from Claude Code. Select an available Gemini ID from `agy models`; `--model` is required. Optional `--cli` selects the native Antigravity executable and `--effort` accepts low/medium/high. The brief path resolves against `--repo`. Include goals, repository facts, open questions, constraints and proportionate research limits. The lead delegates independent workstreams internally to Gemini subagents and returns one consolidated report; a single workstream may run without subagents.
+
+The adapter uses headless stream JSON, a research output schema, plan mode and terminal sandboxing without bypassing permissions. These are not a universal read-only boundary for MCP or external tools. Verify required capabilities and existing tool permissions before launching. Workers may have search tools without direct URL readers; preserve evidence limitations and verify important claims against original sources.
+
+Artifacts include `prompt.txt`, `command.json`, `models.txt`, `research.log`, stdout/stderr, and `result.json`. A validated report is also saved as `report.md`, including for incomplete research. The result records the observed lead model and dispatched worker IDs/transcript references; worker completion is reported by the lead, not independently proven by the schema. Check worker records when necessary.
+
+Only a valid terminal CLI SUCCESS with structured research COMPLETE returns runner exit code 0. INCOMPLETE returns 1 with `status: incomplete`, preserving findings/limitations. Failed, malformed, missing, mismatched or timed-out results return 1 with `status: failed`. Every dispatched worker must be accounted for; COMPLETE requires sources and all reported worker statuses COMPLETE. Research never grants plan approval. The host checks quality and carries findings into the assumptions ledger.
+
+The runner enforces `--timeout` by terminating the process tree; the CLI wait timeout is ten seconds longer so the runner owns the deadline. Local cancellation was verified on Windows after worker search calls; immediate cancellation of already-submitted remote requests is not guaranteed. Research resumption and review/build options are unsupported. Run diagnostics remain outside the target checkout.
+
 ```text
 python RUNNER roles --host claude
 python RUNNER roles --host codex --builder claude

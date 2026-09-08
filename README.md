@@ -73,6 +73,8 @@ Both CLIs must be installed and authenticated for the full cross-provider workfl
 
 Optional `research=deep` also requires access to Antigravity with an available Gemini model. The host launches one research job; its lead Gemini fans out independent workstreams to Gemini subagents when useful and consolidates their findings. The host then carries the sourced report into the existing planning flow. If that access is unavailable, the host reports the blocker rather than silently changing providers or research depth.
 
+The shared runner's `research` mode launches this job with a `--brief` file and explicit Gemini `--model`, captures a structured report, and enforces a process timeout. Incomplete research returns a nonzero runner exit code even when the CLI itself succeeded. See the [research runtime contract](skills/claudex-loop/references/runtime.md#phase-0-research).
+
 ### Claude Code plugin
 
 ```text

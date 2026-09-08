@@ -25,6 +25,9 @@ import json, os, pathlib, sys, time
 if '--version' in sys.argv:
     print('fake-cli 1.0')
     sys.exit(0)
+if 'models' in sys.argv:
+    print('gemini-test Gemini Test')
+    sys.exit(0)
 prompt = sys.stdin.read()
 case = os.environ.get('FAKE_CASE', 'ok')
 if case == 'timeout':
@@ -53,7 +56,22 @@ if case == 'blocked':
     review.update(verdict='BLOCKED', coverage=[], limitations=['Required schema unavailable.'])
 if case == 'malformed':
     review = {'verdict':'APPROVED'}
-if 'exec' in sys.argv:
+if '--print-timeout' in sys.argv:
+    value = {'status':'COMPLETE', 'report':'Findings with sources.',
+             'sources':['https://example.org/source'], 'limitations':[], 'workers':[]}
+    if case == 'research_incomplete':
+        value.update(status='INCOMPLETE', sources=[], limitations=['Source unavailable.'])
+    if case == 'malformed':
+        value = {'status':'COMPLETE'}
+    print(json.dumps({'event':'init','conversation_id':session,'init':{'model':'gemini-test'}}))
+    if case == 'missing_worker':
+        print(json.dumps({'event':'step_update','step_update':{'subagent_info':{
+            'subagents':[{'conversation_id':'worker-1'}]}}}))
+    if case != 'incomplete':
+        print(json.dumps({'event':'result','result':{'conversation_id':session,
+            'status':'ERROR' if case == 'turn_failed' else 'SUCCESS',
+            'structured_output':value}}))
+elif 'exec' in sys.argv:
     output = pathlib.Path(sys.argv[sys.argv.index('-o')+1])
     output.write_text('Built; proof passed.' if case == 'build' else json.dumps(review))
     print(json.dumps({'type':'thread.started', 'thread_id':session}))
@@ -115,6 +133,39 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual((roles["planner"], roles["builder"], roles["inspector"]), ("codex", "claude", "codex"))
         with self.assertRaises(runner.RunError):
             runner.resolve_roles("codex", "codex")
+
+    def test_research_success_and_incomplete_from_both_hosts(self):
+        extra = ('--brief', str(self.plan), '--model', 'gemini-test')
+        for host in runner.PROVIDERS:
+            code, record, path, _ = self.invoke(host, mode='research', extra=extra)
+            self.assertEqual(code, 0, record)
+            self.assertEqual(record['provider'], 'agy')
+            self.assertTrue((path.parent / 'report.md').is_file())
+            with self.assertRaises(runner.RunError):
+                runner.check_approval(record, self.plan, self.repo)
+        code, record, path, _ = self.invoke(mode='research', case='research_incomplete', extra=extra)
+        self.assertEqual(code, 1)
+        self.assertEqual(record['status'], 'incomplete')
+        self.assertEqual(record['exit_code'], 0)
+        self.assertTrue((path.parent / 'report.md').is_file())
+
+    def test_research_rejects_failed_missing_malformed_and_unaccounted_results(self):
+        for case in ('exit', 'empty', 'malformed', 'turn_failed', 'incomplete', 'missing_worker', 'timeout'):
+            with self.subTest(case=case):
+                code, record, _, _ = self.invoke(mode='research', case=case,
+                    extra=('--brief', str(self.plan), '--model', 'gemini-test', '--timeout', '1'))
+                self.assertEqual(code, 1)
+                self.assertEqual(record['status'], 'failed')
+
+    def test_research_requires_gemini_and_fresh_job_without_plan(self):
+        for extra in ((), ('--model', 'claude-test'),
+                      ('--model', 'gemini-test', '--resume', 'previous.json')):
+            code, record, _, _ = self.invoke(mode='research', extra=('--brief', str(self.plan), *extra))
+            self.assertEqual(code, 1)
+            self.assertIsNone(record)
+        code, record, _, _ = self.invoke(mode='research', extra=(
+            '--brief', str(self.plan), '--model', 'gemini-test', '--plan', 'absent.md'))
+        self.assertEqual(code, 0, record)
 
     def test_both_review_adapters_complete_and_bind_custom_plan(self):
         for host in ("claude", "codex"):
