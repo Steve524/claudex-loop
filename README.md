@@ -58,7 +58,7 @@ flowchart LR
     I --> H[Present diff and remaining findings]
 ```
 
-1. **Recon:** inspect existing code and relevant docs, or research greenfield assumptions. Present an assumptions ledger with sources.
+1. **Recon:** inspect existing code and relevant docs, or research greenfield assumptions. Explicitly requested deep research runs as one Antigravity job whose lead Gemini orchestrates Gemini subagents for independent workstreams and returns one report. The host checks it and presents the same assumptions ledger with sources.
 2. **Requirements:** resolve decisions that change the outcome. Batch independent questions, preserve user intent, and write a plan with observable acceptance criteria and proof commands.
 3. **Plan review:** the other provider reads the plan and relevant code, returns evidence-backed findings, and revisits revisions in the same session. Stop at the round budget or an explicit verdict: `APPROVED`, `REVISE`, or `BLOCKED`.
 4. **Build and inspect:** once implementation is authorized, the selected builder works from the plan. Independently run proof checks and inspect the final changes with the other provider in a fresh session.
@@ -70,6 +70,8 @@ The user controls consequential decisions and authorization. A request to review
 ## Install
 
 Both CLIs must be installed and authenticated for the full cross-provider workflow. Python **3.10+** runs the shared adapter; no runtime pip packages or separate API keys are required. Check `codex --version`, `codex login status`, `claude --version` and `claude auth status`. See the [runtime reference](skills/claudex-loop/references/runtime.md) for tested CLI versions and permission boundaries.
+
+Optional `research=deep` also requires access to Antigravity with an available Gemini model. The host launches one research job; its lead Gemini fans out independent workstreams to Gemini subagents when useful and consolidates their findings. The host then carries the sourced report into the existing planning flow. If that access is unavailable, the host reports the blocker rather than silently changing providers or research depth.
 
 ### Claude Code plugin
 
@@ -126,7 +128,7 @@ The third example starts in Claude Code; the fourth starts in Codex. The host se
 | `rounds` / `MAX_ROUNDS` | `5` | Completed plan-review round cap |
 | `MAX_FIX_ROUNDS` | `2` | Build-fix attempt cap |
 | `MAX_INSPECTION_ROUNDS` | `2` | Initial inspection plus one reinspection |
-| `research` | proportionate to task | `none`, `web`, or explicitly authorized `deep` |
+| `research` | proportionate to task | `none`, `web`, or explicitly authorized `deep` via Antigravity with Gemini |
 | `inspect` | `on` | `off` is an explicit, logged opt-out |
 | `PROOF_CMD` | from plan/repo | Agreed command that verifies the deliverable |
 

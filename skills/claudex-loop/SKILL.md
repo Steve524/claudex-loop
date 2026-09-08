@@ -32,7 +32,7 @@ If the user supplies `codex_cli` or `claude_cli`, map the selected provider's ex
 | `LOG_FILE` / `log` | `PLAN-REVIEW-LOG.md` | Append-only transcript |
 | `rounds` / `MAX_ROUNDS` | `5` | Maximum completed plan-review rounds |
 | `builder` | host | Provider implementing the plan |
-| `research` | proportionate to task | `none`, `web`, or explicit opt-in `deep` |
+| `research` | proportionate to task | `none`, `web`, or explicit opt-in `deep` via Antigravity with Gemini |
 | `mode` | `full` | `full` includes recon/interview; `review` starts from an existing plan |
 | `inspect` | `on` | `off` only when the user explicitly opts out; record it |
 | `MAX_FIX_ROUNDS` | `2` | Bounded build-fix attempts before reporting or taking over |
@@ -42,7 +42,13 @@ Echo roles, paths, round limits, requested models and inspection opt-out before 
 
 ## Phase 0 — Recon
 
-For existing projects, inspect relevant code, dependencies, callers and writers of shared state. Read existing `CONTEXT.md` / `CONTEXT-MAP.md` and relevant ADRs. For greenfield work, research prior art, a reasonable stack and concrete failure modes when useful. Respect an explicit research depth. Deep multi-agent research requires explicit opt-in and an available tool; otherwise use supported targeted research, and report the limitation. Do not require a proprietary Workflow tool or hard-code a research-agent model.
+For existing projects, inspect relevant code, dependencies, callers and writers of shared state. Read existing `CONTEXT.md` / `CONTEXT-MAP.md` and relevant ADRs. For greenfield work, research prior art, a reasonable stack and concrete failure modes when useful. Respect an explicit research depth; `none` and `web` retain their existing scope.
+
+For explicitly authorized `research=deep`, delegate **one Antigravity research job** to Gemini, regardless of whether Claude or Codex hosts the loop. Instruct its lead Gemini to orchestrate Gemini subagents when independent research workstreams exist, then synthesize their findings into one report. Do not fan out host-session research workers or launch separate Antigravity jobs for each workstream. A single workstream does not need subagents. Use the available Antigravity integration or its [documented headless CLI](https://antigravity.google/docs/cli/headless), verifying installed capabilities and an available Gemini model before launch. Select Gemini explicitly; do not assume Antigravity's default model is Gemini or pin a particular Gemini version. If Antigravity or Gemini is unavailable, report the blocker and ask whether to restore access or change research depth; never silently substitute host workers or another provider.
+
+Give the Antigravity lead one self-contained research brief: the goal, known repository facts, constraints, open questions and decisions the research must inform. Let it divide independent questions among Gemini subagents where parallelism improves coverage. Require the lead to reconcile conflicts and return sourced findings, alternatives and trade-offs, concrete failure modes, recommendations, and unresolved uncertainties. Keep the entire job research-only; it does not authorize implementation or changes to the plan. Supply the necessary context explicitly rather than assuming Antigravity or its subagents inherit the host's files, tools or credentials.
+
+Wait for the lead's consolidated report and read it before settling research-dependent assumptions. A launched job or individual subagent output is not completed research; surface failures and missing coverage. The host checks the findings against the code and sources, resolves remaining conflicts, and incorporates the results into the same assumptions ledger below. Retain the report path or link, requested and observed Gemini model when available, sources and limitations for `LOG_FILE` when it is initialized in Phase 1. The host still owns requirements and planning; review, build and inspection roles remain unchanged.
 
 Discover relevant skills through the host's available catalog and the other provider's documented skill locations when accessible. Record only relevant proposed dependencies. Do not assume host MCP, browser, credentials or skills transfer to the other CLI. Verify required build capabilities before relying on them.
 
