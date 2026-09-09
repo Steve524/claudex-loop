@@ -391,7 +391,8 @@ def research(args) -> int:
         (run_dir / "models.txt").write_bytes(models.stdout + models.stderr)
         available = {line.split()[0] for line in models.stdout.decode("utf-8").splitlines() if line.split()}
         if models.returncode or args.model not in available:
-            raise RunError("Requested Gemini model unavailable; inspect models.txt.")
+            raise RunError(f"Requested model {args.model} is not available from agy models; "
+                           f"inspect {run_dir / 'models.txt'}.")
         argv = prefix + ["-p", prompt, "--model", args.model, "--mode", "plan", "--sandbox",
                          "--output-format", "stream-json", "--json-schema", str(run_dir / "schema.json"),
                          "--print-timeout", f"{args.timeout + 10}s", "--log-file", str(run_dir / "research.log")]

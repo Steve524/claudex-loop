@@ -2,17 +2,25 @@
 
 ## Antigravity research adapter — 2026-09-08
 
-- Automated suite: 26 passing tests, including research from either host, explicit Gemini/fresh-job requirements, CLI failure, missing/malformed results, omitted workers, incomplete research despite CLI success, timeout handling, and rejection of research as plan approval.
+- Automated suite: 28 passing tests, including research from either host, explicit Gemini/fresh-job requirements, rejection of a correctly prefixed model absent from `agy models`, a brief modified during the run, artifacts refused inside the target checkout in research mode, CLI failure, missing/malformed results, omitted workers, incomplete research despite CLI success, timeout handling, and rejection of research as plan approval.
 - Live adapter smoke test on Windows with Antigravity CLI 1.1.27 and explicit `gemini-3.8-flash-high`: runner exit 0, structured COMPLETE report, two dispatched workers accounted for, about 55 seconds. Used plan mode and terminal sandboxing without permission bypass. Each worker was limited to two searches; these are smoke-test limits, not production defaults. Findings were based on search summaries with limitations recorded; this was orchestration validation, not a source-accuracy audit.
 - Earlier user-run fixtures demonstrated CLI timeout failure, CLI SUCCESS with INCOMPLETE research, and successful bounded synthesis. Forced process-tree termination after both workers recorded a search killed captured local processes; worker transcript hashes stayed unchanged over the 15-second observation window. Immediate cancellation of remote provider requests is unverified. Non-Windows Antigravity cleanup is not live-tested.
 - Diagnostics and research reports remain outside the repository; they are not committed fixtures. The runner checks structure and worker accounting; the host still verifies research coverage, worker evidence when needed, and source accuracy.
 
-Development date: 2026-09-06. Tests run in disposable fixtures; production repositories were not built or modified by live smoke tests.
+### Research coverage: live versus fake CLI versus untested — 2026-09-09
+
+Separating what was actually exercised, because the research path mixes runner enforcement with host prose:
+
+- **Live**, once, on Windows with Antigravity CLI 1.1.27 and `gemini-3.8-flash-high`: job launch, plan mode and terminal sandboxing, subagent dispatch, structured COMPLETE parsing, worker accounting, and forced process-tree termination. Not repeated in CI and not covered on macOS or Linux.
+- **Fake CLI processes only**, no model quota consumed: schema validation, COMPLETE/INCOMPLETE rules, worker accounting failures, model membership against a stubbed `agy models`, brief hashing at launch and completion, `report.md` written for both outcomes, artifact placement outside the checkout, and timeout handling. These prove the runner's contract, not Antigravity's real behavior.
+- **Untested, prose-level host behavior with no automated enforcement**: the Phase 0 sign-off gate on research questions, presenting the complete brief body for approval, retaining and re-checking the approved brief hash, copying the report to `docs/research/`, linking it from the ledger and `PLAN.md`, and the three unavailability choices. The runner cannot observe any of these; a host that skips them still produces a valid run. Stated here rather than implied, because the automated counts above cover none of it.
+
+Development date: 2026-09-06; research coverage entry 2026-09-09. Tests run in disposable fixtures; production repositories were not built or modified by live smoke tests.
 
 ## Automated checks
 
 - `python scripts/validate.py`: active skill frontmatter, local references, both provider manifests and shared-runner presence.
-- `python -m unittest discover -s tests -v`: **23 passing tests** with fake CLI executables and real temporary Git repositories, without model calls.
+- `python -m unittest discover -s tests -v`: **28 passing tests** with fake CLI executables and real temporary Git repositories, without model calls.
 - Codex Skill Creator validator: all three active skills.
 - Codex Plugin Creator validator: `.codex-plugin/plugin.json`.
 - `git diff --check`.
