@@ -39,6 +39,8 @@ if case == 'empty':
     sys.exit(0)
 if case == 'mutate_plan':
     pathlib.Path(os.environ['FAKE_PLAN']).write_text('Changed after launch')
+if case == 'mutate_brief':
+    pathlib.Path(os.environ['FAKE_BRIEF']).write_text('Brief changed after launch')
 if case == 'mutate_code':
     pathlib.Path('new.py').write_text('changed during inspection')
 if case == 'build':
@@ -98,6 +100,8 @@ class RunnerTests(unittest.TestCase):
         self.repo.mkdir()
         self.plan = self.root / "custom plan.md"
         self.plan.write_text("# Work order\nKeep the original until the copy is verified.\n", encoding="utf-8")
+        self.brief = self.root / "research brief.md"
+        self.brief.write_text("# Brief\nWhat do teams get wrong about restores?\n", encoding="utf-8")
         self.artifacts = self.root / "runs"
         self.cli = self.root / "fake_cli.py"
         self.cli.write_text(FAKE_CLI)
@@ -119,7 +123,8 @@ class RunnerTests(unittest.TestCase):
         old = set(self.artifacts.glob("*/result.json")) if self.artifacts.exists() else set()
         output, error = io.StringIO(), io.StringIO()
         with patch.object(runner, "cli_prefix", return_value=[sys.executable, str(self.cli)]), \
-             patch.dict(os.environ, {"FAKE_CASE": case, "FAKE_PLAN": str(self.plan)}), \
+             patch.dict(os.environ, {"FAKE_CASE": case, "FAKE_PLAN": str(self.plan),
+                                     "FAKE_BRIEF": str(self.brief)}), \
              contextlib.redirect_stdout(output), contextlib.redirect_stderr(error):
             code = runner.main(args)
         new = set(self.artifacts.glob("*/result.json")) - old if self.artifacts.exists() else set()
@@ -166,6 +171,22 @@ class RunnerTests(unittest.TestCase):
         code, record, _, _ = self.invoke(mode='research', extra=(
             '--brief', str(self.plan), '--model', 'gemini-test', '--plan', 'absent.md'))
         self.assertEqual(code, 0, record)
+
+    def test_research_rejects_model_absent_from_agy_models(self):
+        code, record, path, _ = self.invoke(mode='research', extra=(
+            '--brief', str(self.brief), '--model', 'gemini-absent'))
+        self.assertEqual(code, 1)
+        self.assertEqual(record['status'], 'failed')
+        self.assertIn('gemini-absent', record['error'])
+        self.assertIn('models.txt', record['error'])
+        self.assertTrue((path.parent / 'models.txt').is_file())
+
+    def test_research_brief_changed_during_run_fails(self):
+        code, record, _, _ = self.invoke(mode='research', case='mutate_brief', extra=(
+            '--brief', str(self.brief), '--model', 'gemini-test'))
+        self.assertEqual(code, 1)
+        self.assertEqual(record['status'], 'failed')
+        self.assertIn('brief', record['error'].lower())
 
     def test_both_review_adapters_complete_and_bind_custom_plan(self):
         for host in ("claude", "codex"):
@@ -335,6 +356,11 @@ class RunnerTests(unittest.TestCase):
 
     def test_artifacts_cannot_contaminate_target_checkout(self):
         code, _, _, error = self.invoke(extra=("--artifacts", str(self.repo / "runs")))
+        self.assertEqual(code, 1)
+        self.assertIn("outside", error)
+        code, _, _, error = self.invoke(mode="research", extra=(
+            "--brief", str(self.brief), "--model", "gemini-test",
+            "--artifacts", str(self.repo / "runs")))
         self.assertEqual(code, 1)
         self.assertIn("outside", error)
 
