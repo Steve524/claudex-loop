@@ -1,5 +1,85 @@
 # Validation — bidirectional loop
 
+## Team build adapter (`claudex-team-build`) — 2026-09-11
+
+### Automated suite
+
+47 tests. On Windows, 45 run and pass; the two POSIX executable-bit tests are skipped there and run in CI on Linux and macOS. The 28 earlier tests are unchanged, except that the fake CLI now names its build output per provider (`built_claude.py` / `built_codex.py`).
+
+### Fake CLI only (no model quota)
+
+**Frontend build launch**
+- Gemini frontend builds from both hosts, with `accept-edits` and `--sandbox`, and without `--dangerously-skip-permissions` or `--continue`.
+- A handoff that carries the plan, baseline, proof command and dependency protocol.
+- A Gemini model that must be listed by `agy models`, and effort bounds.
+- `--provider` combined with `--builder agy` is refused before any launch.
+
+**Outcomes that never become completion**
+- COMPLETE is distinguished from BACKEND_DEPENDENCY (`blocked`) and INCOMPLETE.
+- Malformed reports, a missing proof check, evidence-less checks, turn failure, a missing result, a non-zero exit, empty output, a wrong conversation and timeout never become completion. A timeout still records its partial-work snapshot.
+- An argv log shows no fallback to Claude or Codex, and a non-frontend chain never invokes `agy`.
+- A denied headless action that ends the run, as observed live, is `failed` and names the denied actions.
+
+**Inspection routing**
+- Mixed work goes to the provider opposite the primary builder, for both hosts, with delegated and host-direct (`stage`) primaries.
+- Gemini-only work goes to the host provider, and an additional explicit review is allowed.
+- The backend-dependency sequence: blocked, a wrong conversation refused, a host `stage`, a `--conversation` resume, then a rerouted inspector.
+
+**Handoff safety**
+- The one-writer lock.
+- An unrelated dirty file, and a stale approval after a contract change, are both refused.
+- An index-only `git update-index --chmod=+x` under `core.fileMode=false` is attributed to the right author and reroutes the inspector.
+- Both paths of a staged rename are listed.
+- Staged index content that differs from the working tree is fingerprinted. A handoff refuses it, a host stage attributes it, and inspection refuses it, text or binary, until the index and working tree agree. Inspection then also receives the staged diff.
+- On POSIX, a change between two nonzero executable masks (`0700` → `0710`) is attributed and reroutes the inspector.
+- A superseded step is refused as an `--after` position, a `--resume` position or an inspection target, even when the checkout still matches it. A no-change successor therefore cannot be bypassed to reset the budgets.
+
+**Budgets and verification**
+- Fix and inspection budgets are job-wide and survive a provider switch; later edits invalidate an older step.
+- Claude + Codex cross-inspection counts each pair as one round and refuses the next round once the budget is spent.
+- A browser check that never ran is surfaced as a verification gap.
+- A non-ASCII result echoed to a cp1252 stream no longer turns a saved, valid run into exit 1. That echo bug was first observed live during this change's plan review.
+
+### Live — 2026-09-11, Windows, Antigravity CLI 1.2.1, `gemini-3.8-flash-high`
+
+**Setup**
+- A user-authorized smoke test on a disposable fixture repository, using this worktree's runner.
+- The work order was frontend-only (`--unreviewed-spec`): a `greet()` module and an accessible page, checked by a committed `node check.js`.
+- The CLI had auto-updated from 1.1.27, the version the adapter was designed against.
+
+| Run | Outcome |
+|---|---|
+| 1 | `failed`, correctly. Gemini listed an invented path outside the workspace. Headless Antigravity denied it and **ended the turn** with exit 0, an empty report and `denied_actions`. The documentation says soft-denied runs continue; 1.2.1 did not. No files changed, and no other provider launched. |
+| 2 | `failed`, correctly, after adding stay-in-checkout guidance and `denied_actions` reporting. The error now named the denial. Gemini still searched a path decoded from the fixture's folder name, because the handoff never gave the absolute checkout path. |
+| 3 | `completed`, after the handoff stated the absolute checkout path and marked the plan path reference-only. See details below. |
+| 4 | `completed`: fix round 1 through `--resume`. The runner passed `--conversation` with run 3's ID, and Antigravity returned the **same** conversation ID. Only `web/greet.js` changed, and run 3 was marked `superseded_by` run 4. Host checks of the new `farewell()` and the existing `greet()` passed. |
+
+**Run 3 details**
+- `accept-edits` with `--sandbox` wrote only `web/greet.js` and `web/index.html`, without any permission bypass.
+- The observed model matched the requested one.
+- The report was a valid COMPLETE. It honestly marked the proof `NOT_RUN` because the plan forbade commands, and the runner surfaced that in `verification_gaps`.
+- The host ran `node check.js` itself and got `ok`.
+
+Each run used about 25,000–60,000 tokens.
+
+**Not exercised live**
+- a backend-dependency result;
+- a Claude/Codex primary builder in the same chain;
+- browser verification of the fixture page;
+- a proof command permitted through `permissions.allow`;
+- non-Windows platforms;
+- the Windows prompt-size ceiling (about 32,000 characters).
+
+Fixture diagnostics stay in the session scratchpad and are not committed.
+
+### Known limitation
+
+Snapshots follow Git's model of a change:
+- tracked paths reported by `git diff`, including their Git mode (644 or 755);
+- untracked files, including their executable-bit mask.
+
+A permission change that Git does not record, such as `0700` → `0710` on an otherwise unchanged tracked file, is not attributed to anyone. Such a change never reaches the committed deliverable.
+
 ## Antigravity research adapter — 2026-09-08
 
 - Automated suite: 28 passing tests, including research from either host, explicit Gemini/fresh-job requirements, rejection of a correctly prefixed model absent from `agy models`, a brief modified during the run, artifacts refused inside the target checkout in research mode, CLI failure, missing/malformed results, omitted workers, incomplete research despite CLI success, timeout handling, and rejection of research as plan approval.

@@ -15,6 +15,7 @@ This repository contains separate skills for choosing a model, making a one-off 
 | [`claudex-loop`](skills/claudex-loop/SKILL.md) | Requirements, plan review, implementation, and final inspection | Both CLIs and Python 3.10+ |
 | [`codex-review`](skills/codex-review/SKILL.md) | Explicit Codex plan-review compatibility command | Shared `claudex-loop` skill |
 | [`codex-build`](skills/codex-build/SKILL.md) | Explicit Codex builder compatibility command | Shared `claudex-loop` skill |
+| [`claudex-team-build`](skills/claudex-team-build/SKILL.md) | Opt-in team build: Claude/Codex primary builder plus an Antigravity/Gemini frontend builder, with one independent inspector | Shared `claudex-loop` skill; Antigravity CLI with a Gemini model |
 
 ## Claudex Loop
 
@@ -67,11 +68,47 @@ The user controls consequential decisions and authorization. A request to review
 
 `PLAN.md` records what to build; `PLAN-REVIEW-LOG.md` records the findings, dispositions, models, proof and remaining uncertainty. Both paths are configurable. Detailed CLI diagnostics live in a unique directory outside the target checkout.
 
+## Claudex Team Build
+
+[`claudex-team-build`](skills/claudex-team-build/SKILL.md) is an opt-in way to build the reviewed plan. Existing commands never switch to it on their own.
+
+**Roles**
+- **Primary builder:** Claude or Codex (the host by default). Builds the backend, server rules, shared contracts and integration.
+- **Frontend builder:** Antigravity running an explicitly chosen Gemini model. Builds the full frontend.
+- **Coordinator:** your current conversation. Splits scope, sequences shared files, and arbitrates when Gemini reports that the API contract cannot support a requirement.
+
+**Inspection:** one fresh inspector, chosen from who actually wrote the code:
+- mixed work goes to the provider opposite the primary builder;
+- Gemini-only work goes to a fresh session of the host provider;
+- work with no frontend never launches Gemini;
+- if Claude and Codex both wrote code, each inspects the other's changes.
+
+```text
+claudex-team-build: Implement the reviewed plan at docs/feature-plan.md.
+Use Codex as the primary builder and Antigravity/Gemini for the full frontend.
+
+claudex-team-build: Implement this approved settings-page redesign.
+This is frontend-only; Gemini builds it and a fresh host-provider session inspects it.
+
+claudex-team-build: Implement this backend-only work order with Claude.
+No frontend delegation is needed; Codex inspects the result.
+```
+
+**How the runner keeps it safe**
+- Builders take turns in one clean worktree. Each step records its baseline, snapshot and per-file authorship, and the next builder starts only from exactly that recorded state.
+- Gemini runs with bounded edit permissions and its report is validated. A dependency, incomplete work, a malformed report, a timeout or an unlisted model never counts as completion and never falls back to another provider.
+- Fix and inspection budgets are job-wide, so switching builders cannot reset them.
+- Frontend completion still needs the host's own proof run and a browser check of the affected flows. Missing browser access is reported as a limitation.
+
+See the [team build contract](skills/claudex-loop/references/build.md#team-builds-and-staged-handoffs) for details.
+
 ## Install
 
 Both CLIs must be installed and authenticated for the full cross-provider workflow. Python **3.10+** runs the shared adapter; no runtime pip packages or separate API keys are required. Check `codex --version`, `codex login status`, `claude --version` and `claude auth status`. See the [runtime reference](skills/claudex-loop/references/runtime.md) for tested CLI versions and permission boundaries.
 
 Optional `research=deep` also requires access to Antigravity with an available Gemini model. The host launches one research job; its lead Gemini fans out independent workstreams to Gemini subagents when useful and consolidates their findings. The host then carries the sourced report into the existing planning flow. If that access is unavailable, the host offers three choices — restore access and retry, proceed at `web` depth with the limitation recorded, or carry the affected questions into the interview as open decisions — and never picks for you or silently changes providers.
+
+`claudex-team-build` also needs the Antigravity CLI (`agy`) with an available Gemini model for any frontend work. Frontend builds follow your Antigravity permission settings and never bypass them. See the [frontend build runtime contract](skills/claudex-loop/references/runtime.md#frontend-build-antigravity).
 
 The shared runner's `research` mode launches this job with a `--brief` file and explicit Gemini `--model`, captures a structured report, and enforces a process timeout. Incomplete research returns a nonzero runner exit code even when the CLI itself succeeded. See the [research runtime contract](skills/claudex-loop/references/runtime.md#phase-0-research).
 
@@ -82,7 +119,7 @@ The shared runner's `research` mode launches this job with a `--brief` file and 
 /plugin install claudex-loop@claudex-loop
 ```
 
-Use `/claudex-loop:claudex-route` for a lightweight recommendation or one-off handoff, or `/claudex-loop:claudex-loop`, `/claudex-loop:codex-review`, or `/claudex-loop:codex-build` for the existing workflows. Enable marketplace auto-update in the plugin menu if desired.
+Use `/claudex-loop:claudex-route` for a lightweight recommendation or one-off handoff, or `/claudex-loop:claudex-loop`, `/claudex-loop:codex-review`, or `/claudex-loop:codex-build` for the existing workflows. Use `/claudex-loop:claudex-team-build` for an opt-in Gemini frontend team build. Enable marketplace auto-update in the plugin menu if desired.
 
 ### Codex or manual skill installation
 
@@ -150,7 +187,11 @@ python scripts/validate.py
 python -m unittest discover -s tests -v
 ```
 
-CI runs on Windows, macOS and Linux. Tests cover host routing, both result formats, resumed-session identity, malformed/empty/failed responses, timeout handling, approval invalidation, complete change manifests, and build resumption. Tests use disposable Git repositories and fake CLI processes, without model quota. Live CLI smoke-test results are recorded in [VALIDATION.md](VALIDATION.md).
+CI runs on Windows, macOS and Linux. Tests cover host routing, both result formats, resumed-session identity, malformed/empty/failed responses, timeout handling, approval invalidation, complete change manifests, and build resumption. They also cover team-build handoffs:
+- Gemini frontend results and bounded flags;
+- staged handoffs, attribution of mode and rename changes, and the one-writer lock;
+- inspection routing from authorship;
+- job-wide fix and inspection budgets. Tests use disposable Git repositories and fake CLI processes, without model quota. Live CLI smoke-test results are recorded in [VALIDATION.md](VALIDATION.md).
 
 ## History and credits
 

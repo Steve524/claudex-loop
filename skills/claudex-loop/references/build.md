@@ -21,6 +21,53 @@ For an explicitly requested standalone work order without plan review, replace `
 
 Use `--resume PREVIOUS_BUILD_RESULT --feedback FIX_LIST` for fixes. The clean-checkout gate only applies to the first build; resumed fixes must remain against the same recorded baseline, and the host must ensure intervening changes belong to this build. The build result's `base` identifies the initial commit. Do not trust a builder's success report or proof output as independent verification.
 
+## Team builds and staged handoffs
+
+[`claudex-team-build`](../../claudex-team-build/SKILL.md) chains builders in one checkout without committing, stashing or disabling the clean gate. Each `build` or `stage` result is a step that records:
+- the job baseline and post-run snapshot;
+- `author` and `changed_files`;
+- cumulative per-file `authorship`;
+- `fix_round` and `inspection_rounds`.
+
+```text
+python RUNNER stage --host claude --repo PROJECT --plan PLAN_PATH --approval APPROVED_RESULT
+python RUNNER stage --host claude --repo PROJECT --plan PLAN_PATH --approval APPROVED_RESULT --after PREVIOUS_STEP
+python RUNNER build --host claude --builder agy --repo PROJECT --plan PLAN_PATH --approval APPROVED_RESULT --proof "npm test" --model GEMINI_MODEL_ID --after PREVIOUS_STEP
+python RUNNER inspect --host claude --repo PROJECT --plan PLAN_PATH --after FINAL_STEP
+```
+
+**Starting and continuing a job**
+- The first step needs the clean checkout.
+- `build --after STEP` starts only when HEAD is the step's baseline and the checkout exactly matches its recorded snapshot. Unrelated or unrecorded edits are therefore refused.
+- With `--resume` as well, the resumed session and the `--after` position must share the baseline.
+- **Each step can be continued once.** Continuing a step marks it `superseded_by` its successor. After that, `--after`, a `--resume` position and inspection all refuse it, even when the checkout still matches. The latest step's counters therefore always bind the job.
+- Continue from the latest step, including a failed one that recorded partial work. When `--after` is given, `--resume` only supplies the session.
+
+**Host edits (`stage`)**
+- `stage` without `--after` records a clean job start.
+- `stage --after STEP` attests every change since that step as the host's own direct edits, without requiring a snapshot match. Use it only in an isolated worktree where the host is the sole direct editor, and check its printed `changed_files`.
+
+**One writer at a time**
+- `build` and `stage` hold `<git dir>/claudex-build.lock`, so only one runner step writes at a time.
+- The host must not edit while a delegated step runs.
+- A lock left behind by a hard crash is named in the error. Remove it only after confirming nothing is running.
+
+**Attribution:** snapshots record content, staged index content, Git mode and the executable permission bits per path, and list both paths of a rename. Mode-only and renamed changes are therefore attributed to the step that made them.
+
+**Chained inspection (`inspect --after FINAL_STEP`)**
+- It takes the baseline from the step and refuses a checkout that differs from it.
+- It picks the inspector from authorship:
+  - the provider opposite the single Claude/Codex author;
+  - the host provider for Gemini-only work;
+  - both providers when Claude and Codex both authored. Each run needs an explicit `--provider` and records its `self_authored` files.
+- A sole author cannot inspect its own work.
+
+**Budgets**
+- `--fix-round N` is job-wide. It carries across steps and providers, cannot decrease, and cannot exceed `--max-fix-rounds` (default 2).
+- Inspection rounds are counted separately against `--max-inspection-rounds` (default 2). Each completed chained inspection is written back to the inspected step. A Claude + Codex pair on one state counts once, and failed inspections count nothing.
+
+`inspect` without `--after` keeps the `--builder`/`--base` form below; `--builder agy` selects the host provider.
+
 ## Verify and inspect
 
 Read all changes relative to the pre-build commit, including staged changes, deletions, binary assets and untracked files. For changed tests, check that assertions express the acceptance criteria or valid regressions rather than merely confirming whatever the implementation happens to do. Existing necessary regression tests need not correspond to a new spec sentence. Run the agreed proof commands yourself, and add relevant manual/visual verification when the deliverable calls for it.
@@ -30,7 +77,7 @@ python RUNNER inspect --host claude --builder codex --repo PROJECT --plan PLAN_P
 python RUNNER inspect --host codex --builder claude --repo PROJECT --plan PLAN_PATH --base BASE_COMMIT
 ```
 
-The runner supplies the tracked diff plus a manifest of all changed and untracked files. The reviewer must open added files. It fingerprints the inspected state and refuses approval if code changes during inspection. Ignored files are not enumerated by Git: inspect any ignored build deliverables separately. Changed submodules require an explicit inspection path rather than a silently incomplete diff.
+The runner supplies the tracked diff plus a manifest of all changed and untracked files. When the index differs from the baseline, it also supplies the staged diff, because a commit ships the index. Inspection refuses paths whose staged content differs from the working tree, text or binary, because the inspector reads the working tree. Stage or unstage them first. The reviewer must open added files. It fingerprints the inspected state and refuses approval if code changes during inspection. Ignored files are not enumerated by Git: inspect any ignored build deliverables separately. Changed submodules require an explicit inspection path rather than a silently incomplete diff.
 
 Log findings, coverage, limitations and host dispositions. Fix accepted findings, rerun affected proof checks, then inspect again with a fresh other-provider session. An inspection applies to the recorded snapshot only. Later edits invalidate it. If the host takes over, choose the inspector opposite the new builder. For mixed authorship, log the split and have each provider review the other's changes; disclose remaining gaps if the round budget is exhausted.
 

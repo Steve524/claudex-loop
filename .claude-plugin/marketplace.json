@@ -8,7 +8,7 @@
     {
       "name": "claudex-loop",
       "source": "./",
-      "description": "Standalone model routing and one-off handoffs with Claudex Route, plus the full Claudex Loop planning, build and review workflow."
+      "description": "Standalone model routing and one-off handoffs with Claudex Route, the full Claudex Loop planning, build and review workflow, and opt-in Claudex Team Build with an Antigravity/Gemini frontend builder."
     }
   ]
 }
