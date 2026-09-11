@@ -89,7 +89,7 @@ Stop at `MAX_ROUNDS`. Present unresolved findings and the host's position instea
 
 ## Phase 3 — Build and inspect
 
-Present the reviewed plan, improvements and remaining limits. If implementation is not already authorized, ask for that final decision. Use the selected builder, defaulting to the host. Read [the build reference](references/build.md).
+Present the reviewed plan, improvements and remaining limits. If implementation is not already authorized, ask for that final decision. Use the selected builder, defaulting to the host. Read [the build reference](references/build.md). This workflow never delegates frontend work to Antigravity on its own; a Gemini frontend builder is the opt-in [claudex-team-build](../claudex-team-build/SKILL.md) skill.
 
 The host can implement directly with its normal tools. For a different builder, use the shared runner's `build` mode. Either path must capture the pre-build commit, preserve unrelated user work, and carry the same resolved plan and verification contract.
 

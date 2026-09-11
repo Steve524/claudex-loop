@@ -24,6 +24,57 @@ Only a valid terminal CLI SUCCESS with structured research COMPLETE returns runn
 
 The runner enforces `--timeout` by terminating the process tree; the CLI wait timeout is ten seconds longer so the runner owns the deadline. Local cancellation was verified on Windows after worker search calls; immediate cancellation of already-submitted remote requests is not guaranteed. Research resumption and review/build options are unsupported. Run diagnostics remain outside the target checkout.
 
+### Frontend build (Antigravity)
+
+[`claudex-team-build`](../../claudex-team-build/SKILL.md) launches Gemini as a frontend builder through `build --builder agy`. Existing builder defaults never select it. Chaining and routing are covered in the [build reference](build.md#team-builds-and-staged-handoffs).
+
+```text
+python RUNNER build --host claude --builder agy --repo PROJECT --plan PLAN_PATH --approval APPROVED_RESULT --proof "npm test" --model GEMINI_MODEL_ID
+```
+
+**Model and effort:** `--model` must be a `gemini-` ID listed by `agy models`. `--effort` accepts low, medium or high.
+
+**Launch and permissions**
+- The adapter runs headless stream JSON with `--mode accept-edits`, `--sandbox`, a frontend output schema and the runner-owned timeout.
+- It never passes `--dangerously-skip-permissions` or `--continue`.
+- `--provider` cannot be combined with `--builder agy`; the combination is refused before anything launches.
+- Observed live with Antigravity 1.2.1: a headless action your settings do not allow, such as a command or a read outside the workspace, is denied and **ends the turn**. The CLI exits 0 with an empty report and `denied_actions`. The published documentation still describes the run as continuing.
+- The runner records such a run as `failed` and names the denied actions.
+- The handoff keeps Gemini inside the checkout. It runs the proof command only when the plan states that Antigravity may; otherwise it reports `NOT_RUN` and the host runs the proof. To allow a proof command, add a scoped `permissions.allow` rule in `~/.gemini/antigravity-cli/settings.json` and say so in the plan.
+- Access outside the workspace follows your Antigravity settings and is off by default. Verify it, and remember that a worktree is not a sandbox.
+- The result records the observed `permission_mode` and tool list from the init event.
+
+**Structured report**
+- `status`: COMPLETE, BACKEND_DEPENDENCY or INCOMPLETE
+- `summary`
+- `changed_files`
+- `checks`: name, kind (proof/browser/other), status (PASSED/FAILED/NOT_RUN) and evidence
+- `dependencies`: requirement, actual, needed, proposal and evidence
+- temporary `mocks`
+- `limitations`
+
+**Runner status**
+
+| Outcome | Runner status | Exit code |
+|---|---|---|
+| CLI SUCCESS with COMPLETE | `completed` | 0 |
+| BACKEND_DEPENDENCY | `blocked` | 1 |
+| INCOMPLETE | `incomplete` | 1 |
+| Malformed, missing, mismatched, timed-out or failed | `failed` | 1 |
+
+**Validation rules**
+- COMPLETE cannot carry dependencies or mocks.
+- Every report must include a proof check, and every check needs evidence.
+- Checks that are not PASSED are copied to `verification_gaps`. Builder checks are advisory.
+- A failure never launches another provider.
+- A launched step records its post-run snapshot even when it fails or times out, so partial work stays attributable.
+
+**Resume:** `--resume` on a completed, blocked or incomplete Gemini result passes `--conversation` with the recorded UUID. The runner refuses a result from a different conversation.
+
+**Prompt size:** the handoff travels as a command-line argument, as research's does. On Windows, a handoff over roughly 32,000 characters cannot launch and is recorded as `failed`.
+
+**Artifacts** add `models.txt` and `build.log`. Only the fake-CLI contract is automated; see the repository's validation record for live coverage.
+
 ```text
 python RUNNER roles --host claude
 python RUNNER roles --host codex --builder claude
